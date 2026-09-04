@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.kkoontz.omarchy-news-rss",
   "name": "Omarchy News",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "kevin koontz",
   "license": "MIT",
   "description": "Dedicated panel for official Omarchy and Omacom Foundation news.",
@@ -16,6 +16,20 @@
     "displayName": "Omarchy News",
     "category": "News",
     "allowMultiple": false,
-    "defaultSection": "right"
+    "defaultSection": "right",
+    "defaults": {
+      "refreshMinutes": 15
+    },
+    "schema": [
+      {
+        "key": "refreshMinutes",
+        "type": "integer",
+        "label": "Refresh interval (minutes)",
+        "min": 5,
+        "max": 1440,
+        "step": 1,
+        "defaultValue": 15
+      }
+    ]
   }
 }

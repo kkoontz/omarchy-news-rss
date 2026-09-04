@@ -14,6 +14,7 @@ BarWidget {
   readonly property int unreadCount: news ? news.unreadCount : 0
   readonly property string badgeText: news ? news.badgeText : ""
   readonly property string tooltipLabel: news && news.tooltipText ? news.tooltipText : "Omarchy News"
+  readonly property color unreadColor: bar && bar.urgent ? bar.urgent : Color.urgent
 
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item
@@ -42,16 +43,29 @@ BarWidget {
     var target = panelLoader.item
     if (!target) return
     target.bar = root.bar
+    target.settings = root.settings
     target.anchorItem = button
     target.hostWidget = root
     target.news = root.news
+  }
+
+  function hydrateService() {
+    if (root.news && root.news.hydrateSettings)
+      root.news.hydrateSettings(root.settings)
   }
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
   onBarChanged: injectPanel()
-  onNewsChanged: injectPanel()
+  onNewsChanged: {
+    injectPanel()
+    root.hydrateService()
+  }
+  onSettingsChanged: {
+    injectPanel()
+    root.hydrateService()
+  }
 
   Loader {
     id: panelLoader
@@ -68,9 +82,12 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: "󰑫"
-    tooltipText: root.tooltipLabel
+    text: ""
+    labelVisible: false
     hasVisualContent: true
+    keepSpace: true
+    tooltipText: root.tooltipLabel
+    fixedWidth: Style.bar.iconSlot
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) {
         if (root.news && root.news.refresh) root.news.refresh()
@@ -81,16 +98,26 @@ BarWidget {
       }
     }
 
+    NewsMark {
+      anchors.centerIn: parent
+      size: Style.bar.iconCanvas
+      foreground: button.foreground
+      unreadColor: root.unreadColor
+      unread: root.unreadCount > 0
+      fontFamily: button.fontFamily
+    }
+
     Rectangle {
       visible: root.badgeText !== ""
       anchors.right: parent.right
       anchors.top: parent.top
-      anchors.rightMargin: Style.space(2)
-      anchors.topMargin: Style.space(2)
+      anchors.rightMargin: Style.space(1)
+      anchors.topMargin: Style.space(1)
       width: Math.max(Style.space(12), badgeLabel.implicitWidth + Style.space(6))
       height: Style.space(12)
       radius: height / 2
-      color: button.bar && button.bar.urgent ? button.bar.urgent : Color.urgent
+      color: root.unreadColor
+      z: 2
 
       Text {
         id: badgeLabel

@@ -23,12 +23,34 @@ Item {
       news.markUnread(article.identity)
   }
 
+  function toggleRead() {
+    if (!news || !news.toggleRead || !article) return
+    news.toggleRead(article.identity, article.unread === true)
+  }
+
+  function copyLink() {
+    if (news && news.copyLink && article) news.copyLink(article.link)
+  }
+
+  function scrollBody(pixelDelta, angleDelta) {
+    var maxY = Math.max(0, bodyScroll.contentHeight - bodyScroll.height)
+    if (maxY <= 0) return
+    var dy = pixelDelta !== 0 ? pixelDelta * 2.4 : (angleDelta / 120) * Style.space(64)
+    bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
+  }
+
   Keys.onPressed: function(event) {
     if (event.key === Qt.Key_Escape || event.key === Qt.Key_Backspace) {
       root.backRequested()
       event.accepted = true
     } else if (event.text === "o" || event.text === "O") {
       root.openOriginal()
+      event.accepted = true
+    } else if (event.text === "y" || event.text === "Y") {
+      root.copyLink()
+      event.accepted = true
+    } else if (event.text === "x" || event.text === "X" || event.text === "m" || event.text === "M") {
+      root.toggleRead()
       event.accepted = true
     }
   }
@@ -75,7 +97,7 @@ Item {
       }
 
       Text {
-        text: "Mark unread"
+        text: article && article.unread ? "Mark read" : "Mark unread"
         color: unreadMouse.containsMouse ? Style.hoverStateColor(root.foreground, Color.accent) : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -85,7 +107,7 @@ Item {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.markUnread()
+          onClicked: root.toggleRead()
         }
       }
     }
@@ -129,6 +151,14 @@ Item {
     contentHeight: bodyText.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
     interactive: contentHeight > height
+    flickDeceleration: 2800
+    maximumFlickVelocity: 9000
+    WheelHandler {
+      onWheel: function(event) {
+        root.scrollBody(event.pixelDelta.y, event.angleDelta.y)
+        event.accepted = true
+      }
+    }
 
     Text {
       id: bodyText

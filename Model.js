@@ -420,6 +420,19 @@ function markAllRead(readState, items) {
   return state
 }
 
+function toggleRead(readState, identity, unread) {
+  if (unread) return markRead(readState, identity)
+  return markUnread(readState, identity)
+}
+
+function clampRefreshMinutes(value) {
+  var n = parseInt(String(value === undefined || value === null ? "" : value), 10)
+  if (!isFinite(n)) return 15
+  if (n < 5) return 5
+  if (n > 1440) return 1440
+  return n
+}
+
 function serializeFeed(items, fetchedAt) {
   return { fetchedAt: fetchedAt || "", items: items || [] }
 }
@@ -462,6 +475,9 @@ if (typeof module !== "undefined") {
     markRead: markRead,
     markUnread: markUnread,
     markAllRead: markAllRead,
+    toggleRead: toggleRead,
+    clampRefreshMinutes: clampRefreshMinutes,
+    copyReadState: copyReadState,
     serializeFeed: serializeFeed,
     parseFeedCache: parseFeedCache,
     relativeTime: relativeTime,

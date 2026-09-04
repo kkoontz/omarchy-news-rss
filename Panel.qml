@@ -15,6 +15,7 @@ Panel {
   property int selectedIndex: 0
   property var article: null
   property bool showingArticle: false
+  property bool showingHelp: false
 
   readonly property var barIdentity: hostWidget || root
   readonly property color contentForeground: root.barForeground
@@ -31,7 +32,10 @@ Panel {
     if (news && news.fetchedRelative) return "Updated " + news.fetchedRelative
     return "Not updated yet"
   }
+  readonly property bool canUndo: !!(news && news.canUndoMarkAll)
   readonly property string subtitle: {
+    if (news && news.statusNote === "Copied link") return "Copied link"
+    if (canUndo) return "Marked all read · press z to undo"
     var bits = []
     if (unreadCount > 0) bits.push(unreadCount === 1 ? "1 unread" : unreadCount + " unread")
     else bits.push("Caught up")
@@ -56,9 +60,29 @@ Panel {
   }
 
   function close() {
+    root.showingHelp = false
     root.showingArticle = false
     root.article = null
     root.controller.hide()
+  }
+
+  function dismissOrClose() {
+    if (root.showingHelp) {
+      root.showingHelp = false
+      return
+    }
+    if (root.showingArticle) {
+      root.backToList()
+      return
+    }
+    root.close()
+  }
+
+  function scrollList(pixelDelta, angleDelta) {
+    var maxY = Math.max(0, listScroll.contentHeight - listScroll.height)
+    if (maxY <= 0) return
+    var dy = pixelDelta !== 0 ? pixelDelta * 2.4 : (angleDelta / 120) * root.rowHeight
+    listScroll.contentY = Math.max(0, Math.min(maxY, listScroll.contentY - dy))
   }
 
   function switchPanel(direction) {
@@ -99,20 +123,35 @@ Panel {
     })
   }
 
-  function markSelectedRead() {
+  function toggleSelectedRead() {
     var item = selectedItem
-    if (!item || !news) return
-    news.markRead(item.identity)
+    if (!item || !news || !news.toggleRead) return
+    news.toggleRead(item.identity, item.unread)
+  }
+
+  function copySelectedLink() {
+    var item = selectedItem
+    if (!item || !news || !news.copyLink) return
+    news.copyLink(item.link)
   }
 
   function handleTextKey(text) {
+    if (text === "?" ) {
+      root.showingHelp = !root.showingHelp
+      return
+    }
+    if (root.showingHelp) return
     if (showingArticle) return
     if (text === "o" || text === "O") {
       if (news && selectedItem) news.openOriginal(selectedItem)
+    } else if (text === "y" || text === "Y") {
+      copySelectedLink()
     } else if (text === "r" || text === "R") {
       if (news) news.refresh()
-    } else if (text === "m" || text === "M") {
-      markSelectedRead()
+    } else if (text === "m" || text === "M" || text === "x" || text === "X") {
+      toggleSelectedRead()
+    } else if (text === "z" || text === "Z") {
+      if (news && news.undoMarkAll) news.undoMarkAll()
     } else if (text === "c" || text === "C" || text === "A") {
       if (news) news.markAllRead()
     }
@@ -134,10 +173,10 @@ Panel {
       id: keyCatcher
       anchors.fill: parent
       blocked: root.showingArticle
-      onMoveRequested: function(dx, dy) { root.moveSelection(dy) }
-      onActivateRequested: root.openSelected()
-      onCloseRequested: root.close()
-      onDeleteRequested: root.markSelectedRead()
+      onMoveRequested: function(dx, dy) { if (!root.showingHelp) root.moveSelection(dy) }
+      onActivateRequested: { if (!root.showingHelp) root.openSelected() }
+      onCloseRequested: root.dismissOrClose()
+      onDeleteRequested: { if (!root.showingHelp) root.toggleSelectedRead() }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) { root.handleTextKey(t) }
 
@@ -165,11 +204,20 @@ Panel {
           Text {
             width: parent.width - refreshBtn.width - Style.space(8)
             text: root.subtitle
-            color: root.dim
+            color: root.canUndo
+              ? Style.hoverStateColor(root.contentForeground, Color.accent)
+              : root.dim
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.bodySmall
             elide: Text.ElideRight
             textFormat: Text.PlainText
+
+            MouseArea {
+              anchors.fill: parent
+              enabled: root.canUndo
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.news && root.news.undoMarkAll) root.news.undoMarkAll()
+            }
           }
 
           PanelActionButton {
@@ -223,6 +271,14 @@ Panel {
             contentHeight: listBody.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
             interactive: contentHeight > height
+            flickDeceleration: 2800
+            maximumFlickVelocity: 9000
+            WheelHandler {
+              onWheel: function(event) {
+                root.scrollList(event.pixelDelta.y, event.angleDelta.y)
+                event.accepted = true
+              }
+            }
 
             Column {
               id: listBody
@@ -326,6 +382,13 @@ Panel {
                         }
                       }
 
+                      WheelHandler {
+                        onWheel: function(event) {
+                          root.scrollList(event.pixelDelta.y, event.angleDelta.y)
+                          event.accepted = true
+                        }
+                      }
+
                       MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
@@ -374,6 +437,61 @@ Panel {
         fontFamily: root.contentFontFamily
         news: root.news
         onBackRequested: root.backToList()
+      }
+
+      Rectangle {
+        visible: root.showingHelp
+        anchors.fill: parent
+        color: Qt.rgba(0, 0, 0, 0.72)
+        z: 4
+
+        MouseArea {
+          anchors.fill: parent
+          onClicked: root.showingHelp = false
+        }
+
+        Column {
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(6)
+
+          Text {
+            width: parent.width
+            text: "KEYS"
+            color: root.contentForeground
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            font.letterSpacing: 1
+            textFormat: Text.PlainText
+          }
+
+          Repeater {
+            model: [
+              "j k / arrows   move",
+              "Enter          read in panel",
+              "o              open original",
+              "y              copy link",
+              "x / m          toggle unread",
+              "c / Shift+A    mark all read",
+              "z              undo mark all",
+              "r              refresh",
+              "?              this help",
+              "Esc            back / close"
+            ]
+
+            Text {
+              required property string modelData
+              width: parent.width
+              text: modelData
+              color: root.contentForeground
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              textFormat: Text.PlainText
+            }
+          }
+        }
       }
     }
   }

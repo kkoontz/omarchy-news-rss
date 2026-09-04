@@ -26,21 +26,38 @@ Item {
   property bool feedLoaded: false
   property bool readLoaded: false
   property bool dirReady: false
+  property int refreshMinutes: 15
+  property bool canUndoMarkAll: false
+  property var undoReadState: null
+  property string statusNote: ""
 
   readonly property string pluginId: "io.github.kkoontz.omarchy-news-rss"
   readonly property string homeDir: Quickshell.env("HOME") || ""
   readonly property string stateDir: homeDir + "/.local/state/omarchy/omarchy-news-rss"
   readonly property string feedPath: stateDir + "/feed.json"
   readonly property string readPath: stateDir + "/read.json"
-  readonly property var fetchCommand: [
-    "curl", "-fsS",
-    "--proto", "=https",
-    "--max-time", "10",
-    "--max-redirs", "0",
-    "--max-filesize", "1048576",
-    "--noproxy", "*",
-    Model.feedUrl()
-  ]
+  readonly property string etagPath: stateDir + "/etag"
+
+  function fetchCommand() {
+    return [
+      "curl", "-fsS",
+      "--proto", "=https",
+      "--max-time", "10",
+      "--max-redirs", "0",
+      "--max-filesize", "1048576",
+      "--noproxy", "*",
+      "--etag-compare", root.etagPath,
+      "--etag-save", root.etagPath,
+      Model.feedUrl()
+    ]
+  }
+
+  function hydrateSettings(settings) {
+    var next = Model.clampRefreshMinutes(settings ? settings.refreshMinutes : 15)
+    if (next === root.refreshMinutes) return
+    root.refreshMinutes = next
+    pollTimer.interval = next * 60 * 1000
+  }
 
   function publish() {
     var decorated = Model.decorateItems(root.rawItems, root.readState, Date.now())
@@ -109,7 +126,7 @@ Item {
       return
     }
     root.refreshing = true
-    fetchProc.command = root.fetchCommand
+    fetchProc.command = root.fetchCommand()
     fetchProc.running = true
   }
 
@@ -126,9 +143,37 @@ Item {
   }
 
   function markAllRead() {
+    root.undoReadState = Model.copyReadState(root.readState)
     root.readState = Model.markAllRead(root.readState, root.rawItems)
+    root.canUndoMarkAll = true
+    root.statusNote = "Marked all read"
+    undoTimer.restart()
     root.publish()
     persistRead()
+  }
+
+  function undoMarkAll() {
+    if (!root.canUndoMarkAll || !root.undoReadState) return
+    root.readState = root.undoReadState
+    root.undoReadState = null
+    root.canUndoMarkAll = false
+    root.statusNote = ""
+    undoTimer.stop()
+    root.publish()
+    persistRead()
+  }
+
+  function toggleRead(identity, unread) {
+    root.readState = Model.toggleRead(root.readState, identity, unread)
+    root.publish()
+    persistRead()
+  }
+
+  function copyLink(url) {
+    if (!Model.isHttpsUrl(url)) return
+    Quickshell.execDetached(["wl-copy", "--", url])
+    root.statusNote = "Copied link"
+    noteTimer.restart()
   }
 
   function openHttps(url) {
@@ -147,11 +192,30 @@ Item {
   }
 
   Timer {
-    interval: 15 * 60 * 1000
+    id: pollTimer
+    interval: root.refreshMinutes * 60 * 1000
     repeat: true
     running: true
     triggeredOnStart: true
     onTriggered: root.refresh()
+  }
+
+  Timer {
+    id: undoTimer
+    interval: 5000
+    repeat: false
+    onTriggered: {
+      root.canUndoMarkAll = false
+      root.undoReadState = null
+      if (root.statusNote === "Marked all read") root.statusNote = ""
+    }
+  }
+
+  Timer {
+    id: noteTimer
+    interval: 1800
+    repeat: false
+    onTriggered: if (root.statusNote === "Copied link") root.statusNote = ""
   }
 
   Timer {
@@ -213,7 +277,15 @@ Item {
       waitForEnd: true
       onStreamFinished: {
         root.refreshing = false
-        if (text && root.trimCheck(text)) root.applyFeedXml(text)
+        if (text && root.trimCheck(text)) {
+          root.applyFeedXml(text)
+        } else if (root.rawItems.length) {
+          root.lastError = ""
+          root.offline = false
+          root.publish()
+        } else {
+          root.lastError = "Could not refresh Omarchy News"
+        }
       }
     }
     stderr: StdioCollector {

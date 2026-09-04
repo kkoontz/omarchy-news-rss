@@ -26,17 +26,24 @@ Removal does not delete `~/.local/state/omarchy/omarchy-news-rss/`. Delete that 
 
 ## Usage
 
-- Left-click the RSS glyph to open or close the panel
+- Left-click the Omarchy O to open or close the panel
 - Right-click to refresh
 - Middle-click to mark all read
-- Unread badge hides at 0 and caps at `9+`
+- The O stays theme-colored. The RSS glyph on it turns urgent when something is unread; the `9+` badge still caps the count
 - Tooltip shows the latest headline, or `N new announcements`
 - Click a row (or press Enter) to read the sanitized `content:encoded` in the panel
-- From an article: Back, Open original, Mark unread
+- From an article: Back, Open original, toggle unread
+- `?` shows the key list. `z` undoes mark-all for five seconds
 
 First launch records `firstSeenAt` and marks every item already in the feed as read. Only posts published after that moment become unread, so installing does not dump a historical badge.
 
-The service polls every 15 minutes while the panel is closed. Opening the panel or pressing `r` also refreshes. There are no desktop notifications.
+The service polls every 15 minutes while the panel is closed (override with `refreshMinutes`). Opening the panel or pressing `r` also refreshes. Quiet polls send `If-None-Match` via curl `--etag-save`. There are no desktop notifications.
+
+This plugin does **not** write a Hyprland keybind. To summon it from the keyboard, add this yourself to `~/.config/hypr/bindings.lua` (the community chord for official Omarchy News; `Super+Shift+N` is already Editor):
+
+```lua
+o.bind("SUPER + ALT + N", "Omarchy News", "omarchy-shell shell toggle io.github.kkoontz.omarchy-news-rss")
+```
 
 ## Keyboard
 
@@ -45,9 +52,12 @@ The service polls every 15 minutes while the panel is closed. Opening the panel 
 | `j` / `k` or arrows | Move |
 | Enter | Open article |
 | `o` | Open original in the browser |
+| `y` | Copy the canonical https link |
 | `r` | Refresh |
-| `x` or `m` | Mark selected read |
+| `x` or `m` | Toggle unread on the selected row |
 | `c` or Shift+A | Mark all read |
+| `z` | Undo mark-all (5 seconds) |
+| `?` | Key cheatsheet |
 | Backspace / Escape in article | Back to the list |
 | Escape on the list | Close the panel |
 | Tab | Hand off to the next bar panel |
@@ -56,6 +66,7 @@ The service polls every 15 minutes while the panel is closed. Opening the panel 
 
 ```sh
 omarchy bar move io.github.kkoontz.omarchy-news-rss --section right
+omarchy bar set io.github.kkoontz.omarchy-news-rss refreshMinutes 15
 ```
 
 ## Data
