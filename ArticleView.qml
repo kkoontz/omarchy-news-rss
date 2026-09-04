@@ -36,10 +36,10 @@ Item {
     var maxY = Math.max(0, bodyScroll.contentHeight - bodyScroll.height)
     if (maxY <= 0) return
     var dy = 0
-    if (Math.abs(angleDelta) >= 30)
-      dy = (angleDelta / 120) * Style.space(96)
+    if (Math.abs(angleDelta) >= 15)
+      dy = (angleDelta / 120) * Style.space(120)
     else if (pixelDelta !== 0)
-      dy = pixelDelta * 8
+      dy = pixelDelta * 12
     if (dy === 0) return
     bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
   }
@@ -155,15 +155,8 @@ Item {
     contentWidth: width
     contentHeight: bodyText.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
-    interactive: contentHeight > height
-    flickDeceleration: 2800
-    maximumFlickVelocity: 9000
-    WheelHandler {
-      onWheel: function(event) {
-        root.scrollBody(event.pixelDelta.y, event.angleDelta.y)
-        event.accepted = true
-      }
-    }
+    flickableDirection: Flickable.VerticalFlick
+    interactive: false
 
     Text {
       id: bodyText

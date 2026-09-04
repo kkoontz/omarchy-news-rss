@@ -84,10 +84,10 @@ Panel {
     var dy = 0
     // Prefer notches: libinput often sends a tiny pixelDelta AND angleDelta,
     // and the pixel path made the list crawl. One notch ~ two rows.
-    if (Math.abs(angleDelta) >= 30)
-      dy = (angleDelta / 120) * root.rowHeight * 2
+    if (Math.abs(angleDelta) >= 15)
+      dy = (angleDelta / 120) * root.rowHeight * 3
     else if (pixelDelta !== 0)
-      dy = pixelDelta * 8
+      dy = pixelDelta * 12
     if (dy === 0) return
     listScroll.contentY = Math.max(0, Math.min(maxY, listScroll.contentY - dy))
   }
@@ -187,6 +187,17 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) { root.handleTextKey(t) }
 
+      WheelHandler {
+        enabled: !root.showingHelp
+        onWheel: function(event) {
+          if (root.showingArticle)
+            articleView.scrollBody(event.pixelDelta.y, event.angleDelta.y)
+          else
+            root.scrollList(event.pixelDelta.y, event.angleDelta.y)
+          event.accepted = true
+        }
+      }
+
       Column {
         id: listColumn
         visible: !root.showingArticle
@@ -277,15 +288,10 @@ Panel {
             contentWidth: width
             contentHeight: listBody.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
-            interactive: contentHeight > height
-            flickDeceleration: 2800
-            maximumFlickVelocity: 9000
-            WheelHandler {
-              onWheel: function(event) {
-                root.scrollList(event.pixelDelta.y, event.angleDelta.y)
-                event.accepted = true
-              }
-            }
+            flickableDirection: Flickable.VerticalFlick
+            // Flickable's own wheel path is the slow "weighted" feel.
+            // The parent WheelHandler sets contentY instead.
+            interactive: false
 
             Column {
               id: listBody
