@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.kkoontz.omarchy-news-rss",
+  "name": "Omarchy News",
+  "version": "1.0.0",
+  "author": "kevin koontz",
+  "license": "MIT",
+  "description": "Dedicated panel for official Omarchy and Omacom Foundation news.",
+  "homepage": "https://github.com/kkoontz/omarchy-news",
+  "kinds": ["bar-widget", "service"],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "service": "Service.qml"
+  },
+  "barWidget": {
+    "displayName": "Omarchy News",
+    "category": "News",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
