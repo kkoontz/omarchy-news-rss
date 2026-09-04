@@ -80,6 +80,22 @@ Panel {
     root.close()
   }
 
+  function applyWheel(flick, pixelY, angleY) {
+    if (!flick || flick.contentHeight <= flick.height) return
+    var maxY = flick.contentHeight - flick.height
+    var dy = 0
+    // Classic notches are 120. Hyprland high-res wheels send many tiny
+    // pixelDeltas instead; those have to be scaled or the bar barely moves.
+    if (Math.abs(angleY) >= 80)
+      dy = (angleY / 120) * root.rowHeight * 2.5
+    else if (pixelY !== 0)
+      dy = pixelY * 18
+    else if (angleY !== 0)
+      dy = (angleY > 0 ? 1 : -1) * root.rowHeight
+    if (dy === 0) return
+    flick.contentY = Math.max(0, Math.min(maxY, flick.contentY - dy))
+  }
+
   function switchPanel(direction) {
     if (root.bar && typeof root.bar.switchPanelFrom === "function")
       return root.bar.switchPanelFrom(root.barIdentity, direction)
@@ -392,6 +408,17 @@ Panel {
               onClicked: if (root.news) root.news.openNewsIndex()
             }
           }
+        }
+      }
+
+      MouseArea {
+        visible: listScroll.visible && listScroll.interactive
+        anchors.fill: listScroll
+        z: 2
+        acceptedButtons: Qt.NoButton
+        onWheel: function(wheel) {
+          root.applyWheel(listScroll, wheel.pixelDelta.y, wheel.angleDelta.y)
+          wheel.accepted = true
         }
       }
 

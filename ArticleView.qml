@@ -157,4 +157,25 @@ Item {
       }
     }
   }
+
+  MouseArea {
+    visible: bodyScroll.interactive
+    anchors.fill: bodyScroll
+    z: 2
+    acceptedButtons: Qt.NoButton
+    onWheel: function(wheel) {
+      if (bodyScroll.contentHeight <= bodyScroll.height) return
+      var maxY = bodyScroll.contentHeight - bodyScroll.height
+      var dy = 0
+      if (Math.abs(wheel.angleDelta.y) >= 80)
+        dy = (wheel.angleDelta.y / 120) * Style.space(140)
+      else if (wheel.pixelDelta.y !== 0)
+        dy = wheel.pixelDelta.y * 18
+      else if (wheel.angleDelta.y !== 0)
+        dy = (wheel.angleDelta.y > 0 ? 1 : -1) * Style.space(72)
+      if (dy === 0) return
+      bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
+      wheel.accepted = true
+    }
+  }
 }
