@@ -29,7 +29,7 @@ Item {
 
   readonly property string pluginId: "io.github.kkoontz.omarchy-news-rss"
   readonly property string homeDir: Quickshell.env("HOME") || ""
-  readonly property string stateDir: homeDir + "/.local/state/omarchy/omarchy-news"
+  readonly property string stateDir: homeDir + "/.local/state/omarchy/omarchy-news-rss"
   readonly property string feedPath: stateDir + "/feed.json"
   readonly property string readPath: stateDir + "/read.json"
   readonly property var fetchCommand: [

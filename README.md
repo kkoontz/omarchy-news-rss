@@ -5,7 +5,7 @@ A dedicated bar panel for official [Omarchy](https://omarchy.org/) and [Omacom F
 ## Install
 
 ```sh
-omarchy plugin add https://github.com/kkoontz/omarchy-news.git --enable
+omarchy plugin add https://github.com/kkoontz/omarchy-news-rss.git --enable
 ```
 
 The widget lands on the right of the bar. Plugins run unsandboxed inside the long-lived `omarchy-shell` process; read the code before you enable it.
@@ -22,7 +22,7 @@ omarchy plugin update io.github.kkoontz.omarchy-news-rss
 omarchy plugin remove io.github.kkoontz.omarchy-news-rss
 ```
 
-Removal does not delete `~/.local/state/omarchy/omarchy-news/`. Delete that directory yourself if you want a clean first-run.
+Removal does not delete `~/.local/state/omarchy/omarchy-news-rss/`. Delete that directory yourself if you want a clean first-run.
 
 ## Usage
 
@@ -61,7 +61,7 @@ omarchy bar move io.github.kkoontz.omarchy-news-rss --section right
 ## Data
 
 ```
-~/.local/state/omarchy/omarchy-news/
+~/.local/state/omarchy/omarchy-news-rss/
   feed.json    last good parsed items + fetchedAt
   read.json    read identities + firstSeenAt
 ```

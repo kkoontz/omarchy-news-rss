@@ -6,7 +6,7 @@
   "author": "kevin koontz",
   "license": "MIT",
   "description": "Dedicated panel for official Omarchy and Omacom Foundation news.",
-  "homepage": "https://github.com/kkoontz/omarchy-news",
+  "homepage": "https://github.com/kkoontz/omarchy-news-rss",
   "kinds": ["bar-widget", "service"],
   "entryPoints": {
     "barWidget": "BarWidget.qml",
