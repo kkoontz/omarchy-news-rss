@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import qs.Commons
 import qs.Ui
@@ -52,6 +53,7 @@ Panel {
   function open() {
     root.showingArticle = false
     root.article = null
+    if (listScroll) listScroll.contentY = 0
     if (news && news.refresh) news.refresh()
     root.controller.show()
     Qt.callLater(function() {
@@ -76,20 +78,6 @@ Panel {
       return
     }
     root.close()
-  }
-
-  function scrollList(pixelDelta, angleDelta) {
-    var maxY = Math.max(0, listScroll.contentHeight - listScroll.height)
-    if (maxY <= 0) return
-    var dy = 0
-    // Prefer notches: libinput often sends a tiny pixelDelta AND angleDelta,
-    // and the pixel path made the list crawl. One notch ~ two rows.
-    if (Math.abs(angleDelta) >= 15)
-      dy = (angleDelta / 120) * root.rowHeight * 3
-    else if (pixelDelta !== 0)
-      dy = pixelDelta * 12
-    if (dy === 0) return
-    listScroll.contentY = Math.max(0, Math.min(maxY, listScroll.contentY - dy))
   }
 
   function switchPanel(direction) {
@@ -143,7 +131,7 @@ Panel {
   }
 
   function handleTextKey(text) {
-    if (text === "?" ) {
+    if (text === "?") {
       root.showingHelp = !root.showingHelp
       return
     }
@@ -172,9 +160,7 @@ Panel {
     open: root.opened
     focusTarget: root.showingArticle ? articleView : keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(400))
-    contentHeight: panel.cappedContentHeight(
-      Style.space(72) + root.listRows * root.rowHeight + Style.space(36)
-    )
+    contentHeight: panel.fittedContentHeight(Style.space(520), Style.space(640))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -187,88 +173,84 @@ Panel {
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) { root.handleTextKey(t) }
 
-      WheelHandler {
-        enabled: !root.showingHelp
-        onWheel: function(event) {
-          if (root.showingArticle)
-            articleView.scrollBody(event.pixelDelta.y, event.angleDelta.y)
-          else
-            root.scrollList(event.pixelDelta.y, event.angleDelta.y)
-          event.accepted = true
-        }
-      }
-
-      Column {
-        id: listColumn
+      Flickable {
+        id: listScroll
         visible: !root.showingArticle
         anchors.fill: parent
-        spacing: Style.space(8)
+        clip: true
+        contentWidth: width
+        contentHeight: listColumn.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-        Text {
-          width: parent.width
-          text: "OMARCHY NEWS"
-          color: root.contentForeground
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.subtitle
-          font.bold: true
-          font.letterSpacing: 1.2
-          textFormat: Text.PlainText
-        }
-
-        Row {
-          width: parent.width
+        Column {
+          id: listColumn
+          width: listScroll.width
           spacing: Style.space(8)
 
           Text {
-            width: parent.width - refreshBtn.width - Style.space(8)
-            text: root.subtitle
-            color: root.canUndo
-              ? Style.hoverStateColor(root.contentForeground, Color.accent)
-              : root.dim
+            width: parent.width
+            text: "OMARCHY NEWS"
+            color: root.contentForeground
             font.family: root.contentFontFamily
-            font.pixelSize: Style.font.bodySmall
-            elide: Text.ElideRight
+            font.pixelSize: Style.font.subtitle
+            font.bold: true
+            font.letterSpacing: 1.2
             textFormat: Text.PlainText
+          }
 
-            MouseArea {
-              anchors.fill: parent
-              enabled: root.canUndo
-              cursorShape: Qt.PointingHandCursor
-              onClicked: if (root.news && root.news.undoMarkAll) root.news.undoMarkAll()
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width - refreshBtn.width - Style.space(8)
+              text: root.subtitle
+              color: root.canUndo
+                ? Style.hoverStateColor(root.contentForeground, Color.accent)
+                : root.dim
+              font.family: root.contentFontFamily
+              font.pixelSize: Style.font.bodySmall
+              elide: Text.ElideRight
+              textFormat: Text.PlainText
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: root.canUndo
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.news && root.news.undoMarkAll) root.news.undoMarkAll()
+              }
+            }
+
+            PanelActionButton {
+              id: refreshBtn
+              iconText: "󰑐"
+              tooltipText: "Refresh"
+              foreground: root.contentForeground
+              fontFamily: root.contentFontFamily
+              enabled: !root.refreshing
+              onClicked: if (root.news) root.news.refresh()
             }
           }
 
-          PanelActionButton {
-            id: refreshBtn
-            iconText: "󰑐"
-            tooltipText: "Refresh"
-            foreground: root.contentForeground
-            fontFamily: root.contentFontFamily
-            enabled: !root.refreshing
-            onClicked: if (root.news) root.news.refresh()
+          Text {
+            visible: root.lastError !== ""
+            width: parent.width
+            text: root.offline
+              ? "Offline · showing last cached announcements"
+              : root.lastError
+            color: root.offline ? root.dim : (root.bar && root.bar.urgent ? root.bar.urgent : Color.urgent)
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
           }
-        }
-
-        Text {
-          visible: root.lastError !== ""
-          width: parent.width
-          text: root.offline
-            ? "Offline · showing last cached announcements"
-            : root.lastError
-          color: root.offline ? root.dim : (root.bar && root.bar.urgent ? root.bar.urgent : Color.urgent)
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-          wrapMode: Text.WordWrap
-          textFormat: Text.PlainText
-        }
-
-        Item {
-          width: parent.width
-          height: parent.height - y - footer.implicitHeight - listColumn.spacing
 
           Text {
             visible: root.items.length === 0
-            anchors.fill: parent
+            width: parent.width
             text: root.lastError !== "" && !root.offline
               ? "Could not load Omarchy News."
               : "No announcements yet."
@@ -276,161 +258,139 @@ Panel {
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.body
             wrapMode: Text.WordWrap
-            verticalAlignment: Text.AlignVCenter
             textFormat: Text.PlainText
           }
 
-          Flickable {
-            id: listScroll
-            visible: root.items.length > 0
-            anchors.fill: parent
-            clip: true
-            contentWidth: width
-            contentHeight: listBody.implicitHeight
-            boundsBehavior: Flickable.StopAtBounds
-            flickableDirection: Flickable.VerticalFlick
-            // Flickable's own wheel path is the slow "weighted" feel.
-            // The parent WheelHandler sets contentY instead.
-            interactive: false
+          Repeater {
+            model: root.grouped
 
             Column {
-              id: listBody
-              width: listScroll.width
-              spacing: Style.space(4)
+              required property var modelData
+              width: listColumn.width
+              spacing: Style.space(2)
+
+              Text {
+                width: parent.width
+                text: modelData.label
+                color: root.dim
+                font.family: root.contentFontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+                font.letterSpacing: 1
+                topPadding: Style.space(6)
+                textFormat: Text.PlainText
+              }
 
               Repeater {
-                model: root.grouped
+                model: modelData.items
 
-                Column {
+                CursorSurface {
+                  id: row
                   required property var modelData
-                  width: listBody.width
-                  spacing: Style.space(2)
+                  required property int index
+                  width: listColumn.width
+                  implicitHeight: rowColumn.implicitHeight + Style.space(12)
+                  foreground: root.contentForeground
+                  accent: Color.accent
+                  hasCursor: modelData.index === root.selectedIndex
+                  radius: Style.cornerRadius
 
-                  Text {
-                    width: parent.width
-                    text: modelData.label
-                    color: root.dim
-                    font.family: root.contentFontFamily
-                    font.pixelSize: Style.font.caption
-                    font.bold: true
-                    font.letterSpacing: 1
-                    topPadding: Style.space(6)
-                    textFormat: Text.PlainText
-                  }
+                  Row {
+                    id: rowInner
+                    anchors.fill: parent
+                    anchors.margins: Style.space(8)
+                    spacing: Style.space(8)
 
-                  Repeater {
-                    model: modelData.items
+                    Rectangle {
+                      width: Style.space(6)
+                      height: Style.space(6)
+                      radius: width / 2
+                      anchors.verticalCenter: parent.verticalCenter
+                      color: row.modelData.unread
+                        ? (root.bar && root.bar.urgent ? root.bar.urgent : Color.urgent)
+                        : "transparent"
+                      border.width: row.modelData.unread ? 0 : 1
+                      border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.25)
+                    }
 
-                    CursorSurface {
-                      id: row
-                      required property var modelData
-                      required property int index
-                      width: listBody.width
-                      implicitHeight: rowColumn.implicitHeight + Style.space(12)
-                      foreground: root.contentForeground
-                      accent: Color.accent
-                      hasCursor: modelData.index === root.selectedIndex
-                      radius: Style.cornerRadius
+                    Column {
+                      id: rowColumn
+                      width: parent.width - Style.space(20)
+                      spacing: Style.space(2)
 
-                      Row {
-                        id: rowInner
-                        anchors.fill: parent
-                        anchors.margins: Style.space(8)
-                        spacing: Style.space(8)
-
-                        Rectangle {
-                          width: Style.space(6)
-                          height: Style.space(6)
-                          radius: width / 2
-                          anchors.verticalCenter: parent.verticalCenter
-                          color: row.modelData.unread
-                            ? (root.bar && root.bar.urgent ? root.bar.urgent : Color.urgent)
-                            : "transparent"
-                          border.width: row.modelData.unread ? 0 : 1
-                          border.color: Qt.rgba(root.contentForeground.r, root.contentForeground.g, root.contentForeground.b, 0.25)
-                        }
-
-                        Column {
-                          id: rowColumn
-                          width: parent.width - Style.space(20)
-                          spacing: Style.space(2)
-
-                          Text {
-                            width: parent.width
-                            text: row.modelData.title || ""
-                            color: root.contentForeground
-                            font.family: root.contentFontFamily
-                            font.pixelSize: Style.font.body
-                            font.bold: row.modelData.unread
-                            elide: Text.ElideRight
-                            textFormat: Text.PlainText
-                          }
-
-                          Text {
-                            width: parent.width
-                            text: {
-                              var bits = []
-                              if (row.modelData.creator) bits.push(row.modelData.creator)
-                              if (row.modelData.relative) bits.push(row.modelData.relative)
-                              return bits.join(" · ")
-                            }
-                            color: root.dim
-                            font.family: root.contentFontFamily
-                            font.pixelSize: Style.font.caption
-                            elide: Text.ElideRight
-                            textFormat: Text.PlainText
-                          }
-
-                          Text {
-                            width: parent.width
-                            text: row.modelData.dek || ""
-                            color: root.dim
-                            font.family: root.contentFontFamily
-                            font.pixelSize: Style.font.bodySmall
-                            wrapMode: Text.WordWrap
-                            maximumLineCount: 2
-                            elide: Text.ElideRight
-                            textFormat: Text.PlainText
-                          }
-                        }
+                      Text {
+                        width: parent.width
+                        text: row.modelData.title || ""
+                        color: root.contentForeground
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.body
+                        font.bold: row.modelData.unread
+                        elide: Text.ElideRight
+                        textFormat: Text.PlainText
                       }
 
-                      HoverHandler {
-                        cursorShape: Qt.PointingHandCursor
-                        onHoveredChanged: {
-                          if (hovered && row.modelData && row.modelData.index >= 0)
-                            root.selectedIndex = row.modelData.index
+                      Text {
+                        width: parent.width
+                        text: {
+                          var bits = []
+                          if (row.modelData.creator) bits.push(row.modelData.creator)
+                          if (row.modelData.relative) bits.push(row.modelData.relative)
+                          return bits.join(" · ")
                         }
+                        color: root.dim
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.caption
+                        elide: Text.ElideRight
+                        textFormat: Text.PlainText
                       }
 
-                      TapHandler {
-                        onTapped: root.openArticle(row.modelData)
+                      Text {
+                        width: parent.width
+                        text: row.modelData.dek || ""
+                        color: root.dim
+                        font.family: root.contentFontFamily
+                        font.pixelSize: Style.font.bodySmall
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                        textFormat: Text.PlainText
                       }
                     }
+                  }
+
+                  HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+                    onHoveredChanged: {
+                      if (hovered && row.modelData && row.modelData.index >= 0)
+                        root.selectedIndex = row.modelData.index
+                    }
+                  }
+
+                  TapHandler {
+                    onTapped: root.openArticle(row.modelData)
                   }
                 }
               }
             }
           }
-        }
 
-        Text {
-          id: footer
-          width: parent.width
-          text: "All news on omarchy.org/news"
-          color: footerMouse.containsMouse
-            ? Style.hoverStateColor(root.contentForeground, Color.accent)
-            : root.dim
-          font.family: root.contentFontFamily
-          font.pixelSize: Style.font.caption
-          textFormat: Text.PlainText
+          Text {
+            width: parent.width
+            text: "All news on omarchy.org/news"
+            color: footerMouse.containsMouse
+              ? Style.hoverStateColor(root.contentForeground, Color.accent)
+              : root.dim
+            font.family: root.contentFontFamily
+            font.pixelSize: Style.font.caption
+            textFormat: Text.PlainText
 
-          MouseArea {
-            id: footerMouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: if (root.news) root.news.openNewsIndex()
+            MouseArea {
+              id: footerMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: if (root.news) root.news.openNewsIndex()
+            }
           }
         }
       }

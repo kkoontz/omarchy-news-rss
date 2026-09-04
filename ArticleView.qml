@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
 
@@ -18,11 +19,6 @@ Item {
     if (news && news.openOriginal) news.openOriginal(article)
   }
 
-  function markUnread() {
-    if (news && news.markUnread && article && article.identity)
-      news.markUnread(article.identity)
-  }
-
   function toggleRead() {
     if (!news || !news.toggleRead || !article) return
     news.toggleRead(article.identity, article.unread === true)
@@ -30,18 +26,6 @@ Item {
 
   function copyLink() {
     if (news && news.copyLink && article) news.copyLink(article.link)
-  }
-
-  function scrollBody(pixelDelta, angleDelta) {
-    var maxY = Math.max(0, bodyScroll.contentHeight - bodyScroll.height)
-    if (maxY <= 0) return
-    var dy = 0
-    if (Math.abs(angleDelta) >= 15)
-      dy = (angleDelta / 120) * Style.space(120)
-    else if (pixelDelta !== 0)
-      dy = pixelDelta * 12
-    if (dy === 0) return
-    bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
   }
 
   Keys.onPressed: function(event) {
@@ -156,7 +140,8 @@ Item {
     contentHeight: bodyText.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
     flickableDirection: Flickable.VerticalFlick
-    interactive: false
+    interactive: contentHeight > height
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
     Text {
       id: bodyText
@@ -169,10 +154,6 @@ Item {
       textFormat: Text.RichText
       onLinkActivated: function(link) {
         if (root.news && root.news.openHttps) root.news.openHttps(link)
-      }
-
-      HoverHandler {
-        cursorShape: bodyText.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor
       }
     }
   }
