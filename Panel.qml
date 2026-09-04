@@ -93,6 +93,7 @@ Panel {
     else if (angleY !== 0)
       dy = (angleY > 0 ? 1 : -1) * root.rowHeight
     if (dy === 0) return
+    dy *= 0.75
     flick.contentY = Math.max(0, Math.min(maxY, flick.contentY - dy))
   }
 

@@ -174,6 +174,7 @@ Item {
       else if (wheel.angleDelta.y !== 0)
         dy = (wheel.angleDelta.y > 0 ? 1 : -1) * Style.space(72)
       if (dy === 0) return
+      dy *= 0.75
       bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
       wheel.accepted = true
     }
