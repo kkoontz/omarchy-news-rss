@@ -87,13 +87,12 @@ Panel {
     // Classic notches are 120. Hyprland high-res wheels send many tiny
     // pixelDeltas instead; those have to be scaled or the bar barely moves.
     if (Math.abs(angleY) >= 80)
-      dy = (angleY / 120) * root.rowHeight * 2.5
+      dy = (angleY / 120) * root.rowHeight
     else if (pixelY !== 0)
-      dy = pixelY * 18
-    else if (angleY !== 0)
-      dy = (angleY > 0 ? 1 : -1) * root.rowHeight
+      dy = pixelY * 3
+    else
+      dy = angleY * 0.5
     if (dy === 0) return
-    dy *= 0.75
     flick.contentY = Math.max(0, Math.min(maxY, flick.contentY - dy))
   }
 

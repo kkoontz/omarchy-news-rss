@@ -168,13 +168,12 @@ Item {
       var maxY = bodyScroll.contentHeight - bodyScroll.height
       var dy = 0
       if (Math.abs(wheel.angleDelta.y) >= 80)
-        dy = (wheel.angleDelta.y / 120) * Style.space(140)
+        dy = (wheel.angleDelta.y / 120) * Style.space(56)
       else if (wheel.pixelDelta.y !== 0)
-        dy = wheel.pixelDelta.y * 18
-      else if (wheel.angleDelta.y !== 0)
-        dy = (wheel.angleDelta.y > 0 ? 1 : -1) * Style.space(72)
+        dy = wheel.pixelDelta.y * 3
+      else
+        dy = wheel.angleDelta.y * 0.5
       if (dy === 0) return
-      dy *= 0.75
       bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
       wheel.accepted = true
     }
