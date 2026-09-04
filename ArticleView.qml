@@ -148,6 +148,7 @@ Item {
       width: bodyScroll.width
       text: article && article.content ? article.content : ""
       color: root.foreground
+      linkColor: Color.accent
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
       wrapMode: Text.WordWrap
