@@ -35,7 +35,12 @@ Item {
   function scrollBody(pixelDelta, angleDelta) {
     var maxY = Math.max(0, bodyScroll.contentHeight - bodyScroll.height)
     if (maxY <= 0) return
-    var dy = pixelDelta !== 0 ? pixelDelta * 2.4 : (angleDelta / 120) * Style.space(64)
+    var dy = 0
+    if (Math.abs(angleDelta) >= 30)
+      dy = (angleDelta / 120) * Style.space(96)
+    else if (pixelDelta !== 0)
+      dy = pixelDelta * 8
+    if (dy === 0) return
     bodyScroll.contentY = Math.max(0, Math.min(maxY, bodyScroll.contentY - dy))
   }
 
@@ -173,10 +178,8 @@ Item {
         if (root.news && root.news.openHttps) root.news.openHttps(link)
       }
 
-      MouseArea {
-        anchors.fill: parent
-        acceptedButtons: Qt.NoButton
-        cursorShape: bodyText.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+      HoverHandler {
+        cursorShape: bodyText.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor
       }
     }
   }

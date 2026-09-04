@@ -81,7 +81,14 @@ Panel {
   function scrollList(pixelDelta, angleDelta) {
     var maxY = Math.max(0, listScroll.contentHeight - listScroll.height)
     if (maxY <= 0) return
-    var dy = pixelDelta !== 0 ? pixelDelta * 2.4 : (angleDelta / 120) * root.rowHeight
+    var dy = 0
+    // Prefer notches: libinput often sends a tiny pixelDelta AND angleDelta,
+    // and the pixel path made the list crawl. One notch ~ two rows.
+    if (Math.abs(angleDelta) >= 30)
+      dy = (angleDelta / 120) * root.rowHeight * 2
+    else if (pixelDelta !== 0)
+      dy = pixelDelta * 8
+    if (dy === 0) return
     listScroll.contentY = Math.max(0, Math.min(maxY, listScroll.contentY - dy))
   }
 
@@ -382,22 +389,16 @@ Panel {
                         }
                       }
 
-                      WheelHandler {
-                        onWheel: function(event) {
-                          root.scrollList(event.pixelDelta.y, event.angleDelta.y)
-                          event.accepted = true
+                      HoverHandler {
+                        cursorShape: Qt.PointingHandCursor
+                        onHoveredChanged: {
+                          if (hovered && row.modelData && row.modelData.index >= 0)
+                            root.selectedIndex = row.modelData.index
                         }
                       }
 
-                      MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: {
-                          if (row.modelData && row.modelData.index >= 0)
-                            root.selectedIndex = row.modelData.index
-                        }
-                        onClicked: root.openArticle(row.modelData)
+                      TapHandler {
+                        onTapped: root.openArticle(row.modelData)
                       }
                     }
                   }
