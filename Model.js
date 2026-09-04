@@ -126,6 +126,16 @@ function sanitizeHtml(html) {
   return text
 }
 
+// Qt RichText paints <a> default blue, which disappears on dark panels.
+// Wrap link bodies in <font color> so they follow the panel foreground.
+function paintLinks(html, hex) {
+  var color = String(hex || "#ffffff")
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) color = "#ffffff"
+  return String(html || "")
+    .replace(/<a href="([^"]+)">/gi, "<a href=\"$1\"><font color=\"" + color + "\"><u>")
+    .replace(/<\/a>/gi, "</u></font></a>")
+}
+
 function isRss20(xml) {
   return /<rss\b[^>]*\bversion\s*=\s*["']2\.0["']/i.test(String(xml || ""))
     || /<rss\b[^>]*\bversion\s*=\s*2\.0\b/i.test(String(xml || ""))
@@ -460,6 +470,7 @@ if (typeof module !== "undefined") {
     isHttpsUrl: isHttpsUrl,
     isCanonicalArticleUrl: isCanonicalArticleUrl,
     sanitizeHtml: sanitizeHtml,
+    paintLinks: paintLinks,
     stripTags: stripTags,
     parseFeed: parseFeed,
     emptyReadState: emptyReadState,

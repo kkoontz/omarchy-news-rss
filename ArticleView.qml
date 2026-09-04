@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
 Item {
   id: root
@@ -12,6 +13,19 @@ Item {
   property var news: null
 
   readonly property color dim: Qt.darker(foreground, 1.5)
+  readonly property string bodyHtml: {
+    if (!article || !article.content) return ""
+    return Model.paintLinks(article.content, cssHex(root.foreground))
+  }
+
+  function cssHex(c) {
+    function h(n) {
+      var v = Math.max(0, Math.min(255, Math.round(Number(n) * 255)))
+      var s = v.toString(16)
+      return s.length === 1 ? "0" + s : s
+    }
+    return "#" + h(c.r) + h(c.g) + h(c.b)
+  }
 
   signal backRequested()
 
@@ -146,9 +160,9 @@ Item {
     Text {
       id: bodyText
       width: bodyScroll.width
-      text: article && article.content ? article.content : ""
+      text: root.bodyHtml
       color: root.foreground
-      linkColor: Color.accent
+      linkColor: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
       wrapMode: Text.WordWrap
