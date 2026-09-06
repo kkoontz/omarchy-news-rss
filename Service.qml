@@ -31,26 +31,24 @@ Item {
   property var undoReadState: null
   property string statusNote: ""
 
-  readonly property string pluginId: "io.github.kkoontz.omarchy-news-rss"
-  readonly property string homeDir: Quickshell.env("HOME") || ""
-  readonly property string stateDir: homeDir + "/.local/state/omarchy/omarchy-news-rss"
-  readonly property string feedPath: stateDir + "/feed.json"
-  readonly property string readPath: stateDir + "/read.json"
-  readonly property string etagPath: stateDir + "/etag"
+  property var ioQueue: []
+  property var ioJob: null
+  property string ioBuf: ""
+  property string ioPayload: ""
+  property string fetchBuf: ""
+  property bool fetchOverflow: false
 
-  function fetchCommand() {
-    return [
-      "curl", "-fsS",
-      "--proto", "=https",
-      "--max-time", "10",
-      "--max-redirs", "0",
-      "--max-filesize", "1048576",
-      "--noproxy", "*",
-      "--etag-compare", root.etagPath,
-      "--etag-save", root.etagPath,
-      Model.feedUrl()
-    ]
+  readonly property string pluginId: "io.github.kkoontz.omarchy-news-rss"
+  readonly property string pluginDir: {
+    var dir = ""
+    if (manifest && manifest.__sourceDir)
+      dir = String(manifest.__sourceDir)
+    else
+      dir = String(Qt.resolvedUrl(".")).replace(/^file:\/\//, "")
+    return dir.replace(/\/$/, "")
   }
+  readonly property string helperPath: root.pluginDir + "/helper/io.sh"
+  readonly property int maxFeedBytes: Model.MAX_FEED_BYTES || 1048576
 
   function hydrateSettings(settings) {
     var next = Model.clampRefreshMinutes(settings ? settings.refreshMinutes : 15)
@@ -70,14 +68,53 @@ Item {
     root.fetchedRelative = root.fetchedAt ? Model.relativeTime(Date.parse(root.fetchedAt), Date.now()) : ""
   }
 
+  function enqueueIo(job) {
+    var next = []
+    var i
+    for (i = 0; i < root.ioQueue.length; i++) next.push(root.ioQueue[i])
+    next.push(job)
+    root.ioQueue = next
+    root.pumpIo()
+  }
+
+  function pumpIo() {
+    if (ioProc.running || root.ioQueue.length === 0) return
+    var job = root.ioQueue[0]
+    var rest = []
+    var i
+    for (i = 1; i < root.ioQueue.length; i++) rest.push(root.ioQueue[i])
+    root.ioQueue = rest
+    root.ioJob = job
+    root.ioBuf = ""
+    root.ioPayload = job.payload || ""
+    if (job.op === "init")
+      ioProc.command = ["/usr/bin/bash", root.helperPath, "init"]
+    else if (job.op === "read")
+      ioProc.command = ["/usr/bin/bash", root.helperPath, "read", job.name]
+    else if (job.op === "write")
+      ioProc.command = ["/usr/bin/bash", root.helperPath, "write", job.name]
+    else
+      return
+    ioProc.stdinEnabled = job.op === "write"
+    ioProc.running = true
+  }
+
   function persistRead() {
     if (!root.dirReady) return
-    readFile.setText(JSON.stringify(Model.serializeReadState(root.readState), null, 2) + "\n")
+    root.enqueueIo({
+      op: "write",
+      name: "read",
+      payload: JSON.stringify(Model.serializeReadState(root.readState), null, 2) + "\n"
+    })
   }
 
   function persistFeed() {
     if (!root.dirReady) return
-    feedFile.setText(JSON.stringify(Model.serializeFeed(root.rawItems, root.fetchedAt), null, 2) + "\n")
+    root.enqueueIo({
+      op: "write",
+      name: "feed",
+      payload: JSON.stringify(Model.serializeFeed(root.rawItems, root.fetchedAt), null, 2) + "\n"
+    })
   }
 
   function applyCache(raw) {
@@ -118,7 +155,8 @@ Item {
   function refresh() {
     if (!root.dirReady) {
       root.queuedRefresh = true
-      ensureDir.running = true
+      if (!ioProc.running && root.ioQueue.length === 0 && !root.ioJob)
+        root.enqueueIo({ op: "init" })
       return
     }
     if (fetchProc.running) {
@@ -126,7 +164,9 @@ Item {
       return
     }
     root.refreshing = true
-    fetchProc.command = root.fetchCommand()
+    root.fetchOverflow = false
+    root.fetchBuf = ""
+    fetchProc.command = ["/usr/bin/bash", root.helperPath, "fetch"]
     fetchProc.running = true
   }
 
@@ -191,12 +231,14 @@ Item {
     root.openHttps(Model.newsIndexUrl())
   }
 
+  Component.onCompleted: root.enqueueIo({ op: "init" })
+
   Timer {
     id: pollTimer
     interval: root.refreshMinutes * 60 * 1000
     repeat: true
     running: true
-    triggeredOnStart: true
+    triggeredOnStart: false
     onTriggered: root.refresh()
   }
 
@@ -227,78 +269,91 @@ Item {
   }
 
   Process {
-    id: ensureDir
-    command: ["mkdir", "-p", root.stateDir]
-    running: true
-    onExited: function(exitCode) {
-      root.dirReady = exitCode === 0
-      if (!root.dirReady) {
-        root.lastError = "Could not create " + root.stateDir
+    id: ioProc
+    stdout: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        if (root.ioBuf.length + String(chunk).length > root.maxFeedBytes + 1) {
+          ioProc.signal(15)
+          return
+        }
+        root.ioBuf += chunk
+      }
+    }
+    onStarted: {
+      if (!root.ioJob || root.ioJob.op !== "write") return
+      var payload = root.ioPayload
+      var n = Model.utf8ByteLength(payload)
+      if (n < 1 || n > root.maxFeedBytes) {
+        ioProc.signal(15)
         return
       }
-      feedFile.reload()
-      readFile.reload()
-      if (root.queuedRefresh) {
-        root.queuedRefresh = false
-        root.refresh()
+      write(String(n) + "\n" + payload)
+    }
+    onExited: function(exitCode) {
+      var job = root.ioJob
+      root.ioJob = null
+      if (!job) {
+        root.pumpIo()
+        return
       }
-    }
-  }
-
-  FileView {
-    id: feedFile
-    path: root.feedPath
-    watchChanges: false
-    atomicWrites: true
-    printErrors: false
-    onLoaded: root.applyCache(text())
-    onLoadFailed: {
-      root.feedLoaded = true
-      root.publish()
-    }
-  }
-
-  FileView {
-    id: readFile
-    path: root.readPath
-    watchChanges: false
-    atomicWrites: true
-    printErrors: false
-    onLoaded: root.applyRead(text())
-    onLoadFailed: {
-      root.readLoaded = true
-      root.publish()
+      if (job.op === "init") {
+        root.dirReady = exitCode === 0
+        if (!root.dirReady) {
+          root.lastError = "Could not create news state directory"
+        } else {
+          root.enqueueIo({ op: "read", name: "feed" })
+          root.enqueueIo({ op: "read", name: "read" })
+        }
+      } else if (job.op === "read" && job.name === "feed") {
+        if (exitCode === 0) root.applyCache(root.ioBuf)
+        else {
+          root.feedLoaded = true
+          root.publish()
+        }
+      } else if (job.op === "read" && job.name === "read") {
+        if (exitCode === 0) root.applyRead(root.ioBuf)
+        else {
+          root.readLoaded = true
+          root.publish()
+        }
+        if (root.feedLoaded && root.readLoaded) {
+          root.queuedRefresh = false
+          root.refresh()
+        }
+      }
+      root.pumpIo()
     }
   }
 
   Process {
     id: fetchProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        root.refreshing = false
-        if (text && root.trimCheck(text)) {
-          root.applyFeedXml(text)
-        } else if (root.rawItems.length) {
-          root.lastError = ""
-          root.offline = false
-          root.publish()
-        } else {
-          root.lastError = "Could not refresh Omarchy News"
+    stdout: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        var piece = String(chunk)
+        if (root.fetchBuf.length + piece.length > root.maxFeedBytes + 1) {
+          root.fetchOverflow = true
+          fetchProc.signal(15)
+          return
         }
-      }
-    }
-    stderr: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        if (text && root.trimCheck(text)) root.lastError = "Could not refresh Omarchy News"
+        root.fetchBuf += piece
       }
     }
     onExited: function(exitCode) {
       root.refreshing = false
-      if (exitCode !== 0) {
+      if (root.fetchOverflow || root.fetchBuf.length > root.maxFeedBytes) {
+        root.lastError = "Could not refresh Omarchy News"
         root.offline = root.rawItems.length > 0
-        if (!root.lastError) root.lastError = "Could not refresh Omarchy News"
+        root.publish()
+      } else if (exitCode === 0 && root.fetchBuf.replace(/^\s+|\s+$/g, "").length > 0) {
+        root.applyFeedXml(root.fetchBuf)
+      } else if (root.rawItems.length) {
+        root.lastError = ""
+        root.offline = false
+        root.publish()
+      } else {
+        root.lastError = "Could not refresh Omarchy News"
         root.publish()
       }
       if (root.queuedRefresh) {
@@ -306,9 +361,5 @@ Item {
         root.refresh()
       }
     }
-  }
-
-  function trimCheck(value) {
-    return String(value || "").replace(/^\s+|\s+$/g, "").length > 0
   }
 }

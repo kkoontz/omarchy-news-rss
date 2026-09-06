@@ -4,15 +4,12 @@
 var FEED_URL = "https://omarchy.org/news/rss.xml"
 var NEWS_INDEX_URL = "https://omarchy.org/news"
 var MAX_FEED_BYTES = 1048576
+var MAX_TITLE = 200
+var MAX_CREATOR = 80
+var MAX_DEK = 280
+var MAX_BODY = 20000
+var MAX_TOOLTIP = 200
 var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-var ALLOWED_TAGS = {
-  p: true, a: true, em: true, strong: true, ul: true, ol: true, li: true,
-  blockquote: true, code: true, pre: true, br: true, h1: true, h2: true, h3: true
-}
-var DROP_WITH_CONTENT = {
-  script: true, style: true, iframe: true, object: true, embed: true,
-  form: true, noscript: true, svg: true, math: true, video: true, audio: true
-}
 
 function feedUrl() {
   return FEED_URL
@@ -51,13 +48,6 @@ function decodeEntities(value) {
     .replace(/&apos;/gi, "'")
 }
 
-function encodeAttr(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-}
-
 function hostOf(url) {
   var match = String(url || "").match(/^https:\/\/([^\/?#]+)/i)
   return match ? match[1].toLowerCase() : ""
@@ -68,7 +58,36 @@ function isOmarchyHost(host) {
 }
 
 function isHttpsUrl(url) {
-  return /^https:\/\/[^\s"'<>]+$/i.test(String(url || ""))
+  var s = String(url || "")
+  if (s.length > 2048) return false
+  if (s.indexOf("@") !== -1) return false
+  return /^https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:[/?#][^\s"'<>]*)?$/i.test(s)
+}
+
+function utf8ByteLength(value) {
+  var s = String(value || "")
+  var n = 0
+  var i
+  for (i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i)
+    if (c <= 0x7f) n += 1
+    else if (c <= 0x7ff) n += 2
+    else if (c >= 0xd800 && c <= 0xdfff) {
+      n += 4
+      i += 1
+    } else n += 3
+  }
+  return n
+}
+
+function plainLabel(value, maxLen) {
+  var text = stripTags(value)
+  text = text.replace(/[<>&]/g, "")
+  text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+  var max = Number(maxLen)
+  if (!isFinite(max) || max <= 0) max = MAX_TITLE
+  if (text.length > max) text = text.slice(0, max)
+  return text
 }
 
 function isCanonicalArticleUrl(url) {
@@ -91,49 +110,6 @@ function extractHref(attrs) {
   var match = String(attrs || "").match(/\bhref\s*=\s*("([^"]*)"|'([^']*)')/i)
   if (!match) return ""
   return trim(decodeEntities(match[2] !== undefined ? match[2] : match[3]))
-}
-
-function dropBlocks(html, tag) {
-  var escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  var withContent = new RegExp("<" + escaped + "(\\s[^>]*)?>[\\s\\S]*?</" + escaped + ">", "gi")
-  var lonely = new RegExp("<" + escaped + "(\\s[^>]*)?/?>", "gi")
-  return String(html || "").replace(withContent, "").replace(lonely, "")
-}
-
-function sanitizeHtml(html) {
-  var text = unwrapCdata(String(html || ""))
-  text = text.replace(/<!--[\s\S]*?-->/g, "")
-  var drop
-  for (drop in DROP_WITH_CONTENT) {
-    if (DROP_WITH_CONTENT[drop]) text = dropBlocks(text, drop)
-  }
-  text = dropBlocks(text, "link")
-  text = dropBlocks(text, "meta")
-  text = text.replace(/<\/?([a-zA-Z0-9:-]+)(\s[^>]*)?\/?>/g, function(full, rawName, attrs) {
-    var name = String(rawName || "").toLowerCase()
-    var closing = /^<\//.test(full)
-    if (DROP_WITH_CONTENT[name] || name === "link" || name === "meta") return ""
-    if (!ALLOWED_TAGS[name]) return ""
-    if (closing) return "</" + name + ">"
-    if (name === "br") return "<br/>"
-    if (name === "a") {
-      var href = extractHref(attrs)
-      if (!isHttpsUrl(href)) return ""
-      return "<a href=\"" + encodeAttr(href) + "\">"
-    }
-    return "<" + name + ">"
-  })
-  return text
-}
-
-// Qt RichText paints <a> default blue, which disappears on dark panels.
-// Wrap link bodies in <font color> so they follow the panel foreground.
-function paintLinks(html, hex) {
-  var color = String(hex || "#ffffff")
-  if (!/^#[0-9a-fA-F]{6}$/.test(color)) color = "#ffffff"
-  return String(html || "")
-    .replace(/<a href="([^"]+)">/gi, "<a href=\"$1\"><font color=\"" + color + "\"><u>")
-    .replace(/<\/a>/gi, "</u></font></a>")
 }
 
 function isRss20(xml) {
@@ -218,14 +194,14 @@ function parseItem(block) {
   var pubMs = parsePubMs(pubDate)
   return {
     identity: identity,
-    title: title || "Untitled",
+    title: plainLabel(title || "Untitled", MAX_TITLE),
     link: canonical,
     guid: guid,
     pubDate: pubDate,
     pubMs: pubMs,
-    creator: creator,
-    dek: stripTags(description),
-    content: sanitizeHtml(encoded || description)
+    creator: plainLabel(creator, MAX_CREATOR),
+    dek: plainLabel(description, MAX_DEK),
+    content: plainLabel(encoded || description, MAX_BODY)
   }
 }
 
@@ -380,9 +356,9 @@ function latestHeadline(items) {
 
 function tooltipText(items, count) {
   var n = Number(count) || 0
-  if (n > 1) return n + " new announcements"
+  if (n > 1) return plainLabel(n + " new announcements", MAX_TOOLTIP)
   var headline = latestHeadline(items)
-  return headline || "Omarchy News"
+  return plainLabel(headline || "Omarchy News", MAX_TOOLTIP)
 }
 
 function groupItems(items) {
@@ -465,12 +441,13 @@ if (typeof module !== "undefined") {
   module.exports = {
     FEED_URL: FEED_URL,
     NEWS_INDEX_URL: NEWS_INDEX_URL,
+    MAX_FEED_BYTES: MAX_FEED_BYTES,
     feedUrl: feedUrl,
     newsIndexUrl: newsIndexUrl,
     isHttpsUrl: isHttpsUrl,
     isCanonicalArticleUrl: isCanonicalArticleUrl,
-    sanitizeHtml: sanitizeHtml,
-    paintLinks: paintLinks,
+    utf8ByteLength: utf8ByteLength,
+    plainLabel: plainLabel,
     stripTags: stripTags,
     parseFeed: parseFeed,
     emptyReadState: emptyReadState,

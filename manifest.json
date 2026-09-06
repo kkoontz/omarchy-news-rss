@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.kkoontz.omarchy-news-rss",
   "name": "Omarchy News",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": "kevin koontz",
   "license": "MIT",
   "description": "Dedicated panel for official Omarchy and Omacom Foundation news.",

@@ -31,13 +31,13 @@ Removal does not delete `~/.local/state/omarchy/omarchy-news-rss/`. Delete that 
 - Middle-click to mark all read
 - The O stays theme-colored. The RSS glyph on it turns urgent when something is unread; the `9+` badge still caps the count
 - Tooltip shows the latest headline, or `N new announcements`
-- Click a row (or press Enter) to read the sanitized `content:encoded` in the panel
+- Click a row (or press Enter) to read the article as plain text in the panel
 - From an article: Back, Open original, toggle unread
 - `?` shows the key list. `z` undoes mark-all for five seconds
 
 First launch records `firstSeenAt` and marks every item already in the feed as read. Only posts published after that moment become unread, so installing does not dump a historical badge.
 
-The service polls every 15 minutes while the panel is closed (override with `refreshMinutes`). Opening the panel or pressing `r` also refreshes. Quiet polls send `If-None-Match` via curl `--etag-save`. There are no desktop notifications.
+The service polls every 15 minutes while the panel is closed (override with `refreshMinutes`). Opening the panel or pressing `r` also refreshes. There are no desktop notifications.
 
 This plugin does **not** write a Hyprland keybind. To summon it from the keyboard, add this yourself to `~/.config/hypr/bindings.lua` (the community chord for official Omarchy News; `Super+Shift+N` is already Editor):
 
@@ -82,12 +82,20 @@ Deleting this directory is safe. The next poll rebuilds it. Offline opens show t
 ## Security
 
 - Pinned URL only: `https://omarchy.org/news/rss.xml`
-- Fetched with `curl` over HTTPS (`--proto =https --max-redirs 0 --max-time 10 --max-filesize 1048576 --noproxy '*'`)
+- Fetch and state IO go through `helper/io.sh` (absolute `/usr/bin` paths, `O_NOFOLLOW` reads, exclusive temp + `rename` writes)
+- `curl -q` over HTTPS (`--proto =https --max-redirs 0 --max-time 10 --max-filesize` plus `head -c`, `--noproxy '*'`)
+- Helper stdout is chunked with a 1 MiB cap; no `StdioCollector`, no `FileView`
 - Non-RSS 2.0 or non-official payloads are discarded
-- Article pages are not fetched; the panel renders sanitized `content:encoded`
-- Canonical article URLs must be `https` on `omarchy.org`
+- Article pages are not fetched; the panel renders `content:encoded` as `Text.PlainText` after tag stripping
+- Canonical article URLs must be `https` on `omarchy.org` with no userinfo
 - Originals open with `omarchy-launch-browser`, never `xdg-open`
-- Runtime: Omarchy + `curl`. No Node, Python, or bundled binaries
+- Runtime: Omarchy + `curl` + the bash helper. No Python or bundled binaries
+
+## Test
+
+```sh
+node test/model.js
+```
 
 ## License
 

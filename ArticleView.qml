@@ -13,18 +13,9 @@ Item {
   property var news: null
 
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property string bodyHtml: {
+  readonly property string bodyText: {
     if (!article || !article.content) return ""
-    return Model.paintLinks(article.content, cssHex(root.foreground))
-  }
-
-  function cssHex(c) {
-    function h(n) {
-      var v = Math.max(0, Math.min(255, Math.round(Number(n) * 255)))
-      var s = v.toString(16)
-      return s.length === 1 ? "0" + s : s
-    }
-    return "#" + h(c.r) + h(c.g) + h(c.b)
+    return Model.plainLabel(article.content, 20000)
   }
 
   signal backRequested()
@@ -74,6 +65,7 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         font.bold: true
+        textFormat: Text.PlainText
 
         MouseArea {
           id: backMouse
@@ -89,6 +81,7 @@ Item {
         color: originalMouse.containsMouse ? Style.hoverStateColor(root.foreground, Color.accent) : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+        textFormat: Text.PlainText
 
         MouseArea {
           id: originalMouse
@@ -104,6 +97,7 @@ Item {
         color: unreadMouse.containsMouse ? Style.hoverStateColor(root.foreground, Color.accent) : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+        textFormat: Text.PlainText
 
         MouseArea {
           id: unreadMouse
@@ -151,25 +145,21 @@ Item {
     anchors.bottom: parent.bottom
     clip: true
     contentWidth: width
-    contentHeight: bodyText.implicitHeight
+    contentHeight: bodyLabel.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
     flickableDirection: Flickable.VerticalFlick
     interactive: contentHeight > height
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
     Text {
-      id: bodyText
+      id: bodyLabel
       width: bodyScroll.width
-      text: root.bodyHtml
+      text: root.bodyText
       color: root.foreground
-      linkColor: root.foreground
       font.family: root.fontFamily
       font.pixelSize: Style.font.body
       wrapMode: Text.WordWrap
-      textFormat: Text.RichText
-      onLinkActivated: function(link) {
-        if (root.news && root.news.openHttps) root.news.openHttps(link)
-      }
+      textFormat: Text.PlainText
     }
   }
 
