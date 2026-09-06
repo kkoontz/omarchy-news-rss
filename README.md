@@ -83,7 +83,7 @@ Deleting this directory is safe. The next poll rebuilds it. Offline opens show t
 
 - Pinned URL only: `https://omarchy.org/news/rss.xml`
 - Fetch and state IO go through `helper/io.sh` (absolute `/usr/bin` paths, `O_NOFOLLOW` reads, exclusive temp + `rename` writes)
-- `curl -q` over HTTPS (`--proto =https --max-redirs 0 --max-time 10 --max-filesize` plus `head -c`, `--noproxy '*'`)
+- `curl -q` over HTTPS (`--proto =https --max-redirs 0 --max-time 10 --max-filesize`, write to an exclusive temp, reject oversize, `--noproxy '*'`)
 - Helper stdout is chunked with a 1 MiB cap; no `StdioCollector`, no `FileView`
 - Non-RSS 2.0 or non-official payloads are discarded
 - Article pages are not fetched; the panel renders `content:encoded` as `Text.PlainText` after tag stripping

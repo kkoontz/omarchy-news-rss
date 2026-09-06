@@ -4,7 +4,6 @@
 set -euo pipefail
 
 CURL=/usr/bin/curl
-HEAD=/usr/bin/head
 MKTEMP=/usr/bin/mktemp
 MV=/usr/bin/mv
 DD=/usr/bin/dd
@@ -50,7 +49,6 @@ cmd_init() {
 
 cmd_fetch() {
   ensure_state
-  set -o pipefail
   local t got
   t="$("$MKTEMP" -p "$STATE" .fetch.XXXXXXXXXX)"
   "$TIMEOUT" -k 2 12 "$CURL" -q -fsS \
@@ -59,8 +57,9 @@ cmd_fetch() {
     --max-redirs 0 \
     --max-filesize "$MAX" \
     --noproxy '*' \
+    -o "$t" \
     -- \
-    "$FEED_URL" | "$HEAD" -c $((MAX + 1)) > "$t" || {
+    "$FEED_URL" || {
     /usr/bin/rm -f -- "$t"
     die "fetch failed"
   }
