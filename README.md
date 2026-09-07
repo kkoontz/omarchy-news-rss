@@ -30,7 +30,7 @@ Removal does not delete `~/.local/state/omarchy/omarchy-news-rss/`. Delete that 
 - Right-click to refresh
 - Middle-click to mark all read
 - The icon stays theme-colored. Unread count is the `9+` badge
-- In-article https links use the theme's alt color (accent, or the other Hyprland border stop when accent matches the body text)
+- In-article https links use the theme's alt color (accent, or the other Hyprland border stop when accent matches the body text) and are underlined
 - Tooltip shows the latest headline, or `N new announcements`
 - Click a row (or press Enter) to read the article as plain text in the panel
 - From an article: Back, Open original, toggle unread

@@ -100,9 +100,8 @@ BarWidget {
 
     NewsMark {
       anchors.centerIn: parent
-      size: Style.bar.iconCanvas
+      size: Math.max(Style.bar.iconCanvas, Math.round(Style.bar.iconSlot * 0.72))
       foreground: button.foreground
-      fontFamily: button.fontFamily
     }
 
     Rectangle {
