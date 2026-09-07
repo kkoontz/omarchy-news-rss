@@ -23,11 +23,12 @@ Panel {
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color dim: Qt.darker(contentForeground, 1.5)
   readonly property var themeShell: Color.shellValues
-  readonly property color linkColor: root.themeLinkColor(root.contentForeground)
+  readonly property color linkColor: root.themeLinkColor(
+    root.contentForeground, Color.accent, Color.muted, Color.urgent, root.themeShell)
 
-  // Accent is gold on Omarchs — same as body text — so Color.accent is
-  // invisible as a link color. Use the other Hyprland border stop (purple
-  // on that theme). Never return a color that matches the body.
+  // Tokens come from the active theme (colors.toml + generated shell.toml).
+  // If accent matches the body, use the other Hyprland border stop — that is
+  // the purple on Omarchs, blue on Tokyo Night, etc.
   function channel(v) {
     var n = Number(v)
     if (!isFinite(n)) return 0
@@ -56,24 +57,23 @@ Panel {
       + Math.abs(b - root.channel(color.b)) > 0.35
   }
 
-  function themeBorder() {
-    var values = root.themeShell || {}
+  function themeBorder(shellValues) {
+    var values = shellValues || {}
     return values["hyprland.active-border"]
       || values["hyprland.active-border-foreground"]
       || ""
   }
 
-  function themeLinkColor(foreground) {
-    if (root.colorFar(Color.accent, foreground)) return Color.accent
-    var hexes = String(root.themeBorder()).match(/[0-9A-Fa-f]{6}/g) || []
+  function themeLinkColor(foreground, accent, muted, urgent, shellValues) {
+    if (root.colorFar(accent, foreground)) return accent
+    var hexes = String(root.themeBorder(shellValues)).match(/[0-9A-Fa-f]{6}/g) || []
     var i
     for (i = 0; i < hexes.length; i++) {
       if (root.hexFar(hexes[i], foreground)) return "#" + hexes[i]
     }
-    if (root.colorFar(Color.muted, foreground)) return Color.muted
-    var hue = foreground.hslHue
-    if (isNaN(hue)) hue = 0.12
-    return Qt.hsla((hue + 0.65) % 1.0, 0.72, 0.58, 1)
+    if (root.colorFar(muted, foreground)) return muted
+    if (root.colorFar(urgent, foreground)) return urgent
+    return accent
   }
   readonly property var items: news && news.items ? news.items : []
   readonly property var grouped: news && news.grouped ? news.grouped : []
