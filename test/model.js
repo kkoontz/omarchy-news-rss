@@ -58,6 +58,15 @@ assert.ok(!parsed.items[0].content.includes("<img"))
 assert.ok(!parsed.items[0].content.includes("127.0.0.1"))
 assert.ok(parsed.items[0].content.includes("Body"))
 assert.ok(parsed.items[0].body.length >= 1)
+assert.ok(parsed.items[0].html.indexOf("<p>") !== -1)
+
+const realHtml = '<p>In fact, <a href="https://github.com/omacom/omarchy/releases/tag/v4.0.0">Omarchy Quattro</a> has almost exclusively been built by agents.</p>'
+const realParas = Model.bodyParagraphs(realHtml, 2000)
+const realLinks = realParas.reduce(function(all, para) { return all.concat(para) }, [])
+  .filter(function(token) { return token.kind === "link" })
+assert.strictEqual(realLinks.length, 1)
+assert.strictEqual(realLinks[0].text, "Omarchy Quattro")
+assert.strictEqual(realLinks[0].href, "https://github.com/omacom/omarchy/releases/tag/v4.0.0")
 
 const tip = Model.tooltipText(parsed.items, 1)
 assert.ok(!tip.includes("<"))

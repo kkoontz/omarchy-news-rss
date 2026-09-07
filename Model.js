@@ -337,6 +337,7 @@ function parseItem(block) {
   var canonical = isCanonicalArticleUrl(link) ? link : (isCanonicalArticleUrl(guid) ? guid : "")
   if (!canonical) return null
   var pubMs = parsePubMs(pubDate)
+  var source = encoded || description
   return {
     identity: identity,
     title: plainLabel(title || "Untitled", MAX_TITLE),
@@ -346,8 +347,9 @@ function parseItem(block) {
     pubMs: pubMs,
     creator: plainLabel(creator, MAX_CREATOR),
     dek: plainLabel(description, MAX_DEK),
-    content: plainLabel(encoded || description, MAX_BODY),
-    body: bodyParagraphs(encoded || description, MAX_BODY)
+    content: plainLabel(source, MAX_BODY),
+    html: String(source).slice(0, MAX_BODY * 2),
+    body: bodyParagraphs(source, MAX_BODY)
   }
 }
 

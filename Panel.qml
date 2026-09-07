@@ -22,14 +22,27 @@ Panel {
   readonly property color contentForeground: root.barForeground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color dim: Qt.darker(contentForeground, 1.5)
+  readonly property var themeShell: Color.shellValues
   readonly property color linkColor: root.themeLinkColor(root.contentForeground)
 
-  // Prefer Color.accent when it is not the body color. On themes such as
-  // Omarchs, accent matches foreground (gold), so use the other Hyprland
-  // border stop — purple on that theme — then muted.
+  // Accent is gold on Omarchs — same as body text — so Color.accent is
+  // invisible as a link color. Use the other Hyprland border stop (purple
+  // on that theme). Never return a color that matches the body.
+  function channel(v) {
+    var n = Number(v)
+    if (!isFinite(n)) return 0
+    return n > 1 ? n / 255 : n
+  }
+
+  function colorDist(a, b) {
+    if (a === undefined || b === undefined) return 0
+    return Math.abs(root.channel(a.r) - root.channel(b.r))
+      + Math.abs(root.channel(a.g) - root.channel(b.g))
+      + Math.abs(root.channel(a.b) - root.channel(b.b))
+  }
+
   function colorFar(a, b) {
-    if (a === undefined || b === undefined) return false
-    return Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b) > 0.35
+    return root.colorDist(a, b) > 0.35
   }
 
   function hexFar(hex, color) {
@@ -38,19 +51,29 @@ Panel {
     var r = ((n >> 16) & 255) / 255
     var g = ((n >> 8) & 255) / 255
     var b = (n & 255) / 255
-    return Math.abs(r - color.r) + Math.abs(g - color.g) + Math.abs(b - color.b) > 0.35
+    return Math.abs(r - root.channel(color.r))
+      + Math.abs(g - root.channel(color.g))
+      + Math.abs(b - root.channel(color.b)) > 0.35
+  }
+
+  function themeBorder() {
+    var values = root.themeShell || {}
+    return values["hyprland.active-border"]
+      || values["hyprland.active-border-foreground"]
+      || ""
   }
 
   function themeLinkColor(foreground) {
     if (root.colorFar(Color.accent, foreground)) return Color.accent
-    var border = Color.pick("hyprland.active-border", "")
-    var hexes = String(border).match(/[0-9A-Fa-f]{6}/g) || []
+    var hexes = String(root.themeBorder()).match(/[0-9A-Fa-f]{6}/g) || []
     var i
     for (i = 0; i < hexes.length; i++) {
       if (root.hexFar(hexes[i], foreground)) return "#" + hexes[i]
     }
     if (root.colorFar(Color.muted, foreground)) return Color.muted
-    return Color.accent
+    var hue = foreground.hslHue
+    if (isNaN(hue)) hue = 0.12
+    return Qt.hsla((hue + 0.65) % 1.0, 0.72, 0.58, 1)
   }
   readonly property var items: news && news.items ? news.items : []
   readonly property var grouped: news && news.grouped ? news.grouped : []
@@ -424,8 +447,9 @@ Panel {
             width: parent.width
             text: "All news on omarchy.org/news"
             color: footerMouse.containsMouse
-              ? Qt.lighter(root.linkColor, 1.2)
+              ? Qt.lighter(root.linkColor, 1.18)
               : root.linkColor
+            font.underline: true
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
             textFormat: Text.PlainText

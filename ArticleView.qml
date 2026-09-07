@@ -15,9 +15,10 @@ Item {
 
   readonly property color dim: Qt.darker(foreground, 1.5)
   readonly property var paragraphs: {
-    if (article && article.body && article.body.length) return article.body
-    if (!article || !article.content) return []
-    return Model.bodyParagraphs(article.content, 20000)
+    if (!article) return []
+    var src = article.html || article.content || ""
+    if (!src) return []
+    return Model.bodyParagraphs(src, 20000)
   }
 
   signal backRequested()
@@ -84,9 +85,10 @@ Item {
 
       Text {
         text: "Open original"
-        color: originalMouse.containsMouse ? Qt.lighter(root.linkColor, 1.2) : root.linkColor
+        color: originalMouse.containsMouse ? Qt.lighter(root.linkColor, 1.18) : root.linkColor
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
+        font.underline: true
         textFormat: Text.PlainText
 
         MouseArea {
@@ -165,39 +167,14 @@ Item {
       Repeater {
         model: root.paragraphs
 
-        Flow {
+        BodyParagraph {
           required property var modelData
-          readonly property var tokens: modelData
           width: bodyColumn.width
-          spacing: 0
-
-          Repeater {
-            model: tokens
-
-            Text {
-              id: tokenLabel
-              required property var modelData
-              readonly property bool isLink: modelData && modelData.kind === "link"
-              text: modelData && modelData.text ? modelData.text : ""
-              color: tokenLabel.isLink
-                ? (tokenMouse.containsMouse ? Qt.lighter(root.linkColor, 1.2) : root.linkColor)
-                : root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-              wrapMode: Text.Wrap
-              width: Math.min(Math.max(implicitWidth, 1), bodyColumn.width)
-              textFormat: Text.PlainText
-
-              MouseArea {
-                id: tokenMouse
-                anchors.fill: parent
-                enabled: tokenLabel.isLink
-                hoverEnabled: tokenLabel.isLink
-                cursorShape: tokenLabel.isLink ? Qt.PointingHandCursor : Qt.ArrowCursor
-                onClicked: if (tokenLabel.isLink) root.openHref(tokenLabel.modelData.href)
-              }
-            }
-          }
+          tokens: modelData
+          foreground: root.foreground
+          linkColor: root.linkColor
+          fontFamily: root.fontFamily
+          onLinkActivated: function(href) { root.openHref(href) }
         }
       }
     }
