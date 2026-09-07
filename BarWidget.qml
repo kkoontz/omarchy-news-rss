@@ -102,8 +102,6 @@ BarWidget {
       anchors.centerIn: parent
       size: Style.bar.iconCanvas
       foreground: button.foreground
-      unreadColor: root.unreadColor
-      unread: root.unreadCount > 0
       fontFamily: button.fontFamily
     }
 

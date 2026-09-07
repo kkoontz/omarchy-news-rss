@@ -26,10 +26,11 @@ Removal does not delete `~/.local/state/omarchy/omarchy-news-rss/`. Delete that 
 
 ## Usage
 
-- Left-click the Omarchy O to open or close the panel
+- Left-click the RSS icon to open or close the panel
 - Right-click to refresh
 - Middle-click to mark all read
-- The O stays theme-colored. The RSS glyph on it turns urgent when something is unread; the `9+` badge still caps the count
+- The icon stays theme-colored. Unread count is the `9+` badge
+- In-article https links use the theme's alt color (accent, or the other Hyprland border stop when accent matches the body text)
 - Tooltip shows the latest headline, or `N new announcements`
 - Click a row (or press Enter) to read the article as plain text in the panel
 - From an article: Back, Open original, toggle unread
@@ -86,7 +87,7 @@ Deleting this directory is safe. The next poll rebuilds it. Offline opens show t
 - `curl -q` over HTTPS (`--proto =https --max-redirs 0 --max-time 10 --max-filesize`, write to an exclusive temp, reject oversize, `--noproxy '*'`)
 - Helper stdout is chunked with a 1 MiB cap; no `StdioCollector`, no `FileView`
 - Non-RSS 2.0 or non-official payloads are discarded
-- Article pages are not fetched; the panel renders `content:encoded` as `Text.PlainText` after tag stripping
+- Article pages are not fetched; the panel renders `content:encoded` as `Text.PlainText` after tag stripping. https links stay clickable as separate plain-text runs; `javascript:` and `http://` hrefs are not.
 - Canonical article URLs must be `https` on `omarchy.org` with no userinfo
 - Originals open with `omarchy-launch-browser`, never `xdg-open`
 - Runtime: Omarchy + `curl` + the bash helper. No Python or bundled binaries
