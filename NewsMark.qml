@@ -14,7 +14,7 @@ Item {
   height: size
 
   readonly property real u: size / 24
-  readonly property real stroke: Math.max(2, 3.4 * u)
+  readonly property real stroke: Math.max(1.5, 2.6 * u)
   readonly property real cx: 6.2 * u
   readonly property real cy: 17.8 * u
 
@@ -30,6 +30,8 @@ Item {
   Shape {
     anchors.fill: parent
     antialiasing: true
+    layer.enabled: true
+    layer.samples: 4
 
     ShapePath {
       strokeWidth: root.stroke
