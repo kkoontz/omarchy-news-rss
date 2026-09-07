@@ -9,13 +9,15 @@ Item {
 
   property var article: null
   property color foreground: Color.foreground
+  property color linkColor: Color.accent
   property string fontFamily: Style.font.family
   property var news: null
 
   readonly property color dim: Qt.darker(foreground, 1.5)
-  readonly property string bodyText: {
-    if (!article || !article.content) return ""
-    return Model.plainLabel(article.content, 20000)
+  readonly property var paragraphs: {
+    if (article && article.body && article.body.length) return article.body
+    if (!article || !article.content) return []
+    return Model.bodyParagraphs(article.content, 20000)
   }
 
   signal backRequested()
@@ -31,6 +33,10 @@ Item {
 
   function copyLink() {
     if (news && news.copyLink && article) news.copyLink(article.link)
+  }
+
+  function openHref(href) {
+    if (news && news.openHttps) news.openHttps(href)
   }
 
   Keys.onPressed: function(event) {
@@ -78,7 +84,7 @@ Item {
 
       Text {
         text: "Open original"
-        color: originalMouse.containsMouse ? Style.hoverStateColor(root.foreground, Color.accent) : root.dim
+        color: originalMouse.containsMouse ? Qt.lighter(root.linkColor, 1.2) : root.linkColor
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
         textFormat: Text.PlainText
@@ -145,21 +151,55 @@ Item {
     anchors.bottom: parent.bottom
     clip: true
     contentWidth: width
-    contentHeight: bodyLabel.implicitHeight
+    contentHeight: bodyColumn.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
     flickableDirection: Flickable.VerticalFlick
     interactive: contentHeight > height
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-    Text {
-      id: bodyLabel
+    Column {
+      id: bodyColumn
       width: bodyScroll.width
-      text: root.bodyText
-      color: root.foreground
-      font.family: root.fontFamily
-      font.pixelSize: Style.font.body
-      wrapMode: Text.WordWrap
-      textFormat: Text.PlainText
+      spacing: Style.space(10)
+
+      Repeater {
+        model: root.paragraphs
+
+        Flow {
+          required property var modelData
+          readonly property var tokens: modelData
+          width: bodyColumn.width
+          spacing: 0
+
+          Repeater {
+            model: tokens
+
+            Text {
+              id: tokenLabel
+              required property var modelData
+              readonly property bool isLink: modelData && modelData.kind === "link"
+              text: modelData && modelData.text ? modelData.text : ""
+              color: tokenLabel.isLink
+                ? (tokenMouse.containsMouse ? Qt.lighter(root.linkColor, 1.2) : root.linkColor)
+                : root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: Text.Wrap
+              width: Math.min(Math.max(implicitWidth, 1), bodyColumn.width)
+              textFormat: Text.PlainText
+
+              MouseArea {
+                id: tokenMouse
+                anchors.fill: parent
+                enabled: tokenLabel.isLink
+                hoverEnabled: tokenLabel.isLink
+                cursorShape: tokenLabel.isLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+                onClicked: if (tokenLabel.isLink) root.openHref(tokenLabel.modelData.href)
+              }
+            }
+          }
+        }
+      }
     }
   }
 

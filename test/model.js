@@ -15,6 +15,24 @@ assert.ok(!plain.includes("&"))
 assert.ok(plain.includes("Hello"))
 assert.ok(plain.includes("link"))
 
+const paras = Model.bodyParagraphs(dirty, 2000)
+const tokens = paras.reduce(function(all, para) { return all.concat(para) }, [])
+const links = tokens.filter(function(token) { return token.kind === "link" })
+assert.strictEqual(links.length, 1)
+assert.strictEqual(links[0].href, "https://omarchy.org/x")
+assert.strictEqual(links[0].text, "link")
+assert.ok(tokens.some(function(token) { return token.kind === "text" && token.text.indexOf("Hello") !== -1 }))
+assert.ok(!tokens.some(function(token) { return token.href && token.href.indexOf("127.0.0.1") !== -1 }))
+
+const blocked = Model.bodyParagraphs(
+  '<p><a href="javascript:alert(1)">no</a> <a href="http://evil.example">nope</a> <a href="https://omarchy.org/ok">yes</a></p>',
+  2000
+)
+const blockedLinks = blocked.reduce(function(all, para) { return all.concat(para) }, [])
+  .filter(function(token) { return token.kind === "link" })
+assert.strictEqual(blockedLinks.length, 1)
+assert.strictEqual(blockedLinks[0].href, "https://omarchy.org/ok")
+
 const xml = `<?xml version="1.0"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
 <channel>
@@ -39,6 +57,7 @@ assert.ok(!parsed.items[0].title.includes("<"))
 assert.ok(!parsed.items[0].content.includes("<img"))
 assert.ok(!parsed.items[0].content.includes("127.0.0.1"))
 assert.ok(parsed.items[0].content.includes("Body"))
+assert.ok(parsed.items[0].body.length >= 1)
 
 const tip = Model.tooltipText(parsed.items, 1)
 assert.ok(!tip.includes("<"))

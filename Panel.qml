@@ -22,6 +22,36 @@ Panel {
   readonly property color contentForeground: root.barForeground
   readonly property string contentFontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color dim: Qt.darker(contentForeground, 1.5)
+  readonly property color linkColor: root.themeLinkColor(root.contentForeground)
+
+  // Prefer Color.accent when it is not the body color. On themes such as
+  // Omarchs, accent matches foreground (gold), so use the other Hyprland
+  // border stop — purple on that theme — then muted.
+  function colorFar(a, b) {
+    if (a === undefined || b === undefined) return false
+    return Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b) > 0.35
+  }
+
+  function hexFar(hex, color) {
+    var n = parseInt(hex, 16)
+    if (!isFinite(n)) return false
+    var r = ((n >> 16) & 255) / 255
+    var g = ((n >> 8) & 255) / 255
+    var b = (n & 255) / 255
+    return Math.abs(r - color.r) + Math.abs(g - color.g) + Math.abs(b - color.b) > 0.35
+  }
+
+  function themeLinkColor(foreground) {
+    if (root.colorFar(Color.accent, foreground)) return Color.accent
+    var border = Color.pick("hyprland.active-border", "")
+    var hexes = String(border).match(/[0-9A-Fa-f]{6}/g) || []
+    var i
+    for (i = 0; i < hexes.length; i++) {
+      if (root.hexFar(hexes[i], foreground)) return "#" + hexes[i]
+    }
+    if (root.colorFar(Color.muted, foreground)) return Color.muted
+    return Color.accent
+  }
   readonly property var items: news && news.items ? news.items : []
   readonly property var grouped: news && news.grouped ? news.grouped : []
   readonly property int unreadCount: news ? news.unreadCount : 0
@@ -394,8 +424,8 @@ Panel {
             width: parent.width
             text: "All news on omarchy.org/news"
             color: footerMouse.containsMouse
-              ? Style.hoverStateColor(root.contentForeground, Color.accent)
-              : root.dim
+              ? Qt.lighter(root.linkColor, 1.2)
+              : root.linkColor
             font.family: root.contentFontFamily
             font.pixelSize: Style.font.caption
             textFormat: Text.PlainText
@@ -428,6 +458,7 @@ Panel {
         anchors.fill: parent
         article: root.article
         foreground: root.contentForeground
+        linkColor: root.linkColor
         fontFamily: root.contentFontFamily
         news: root.news
         onBackRequested: root.backToList()

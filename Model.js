@@ -8,6 +8,7 @@ var MAX_TITLE = 200
 var MAX_CREATOR = 80
 var MAX_DEK = 280
 var MAX_BODY = 20000
+var MAX_BODY_TOKENS = 400
 var MAX_TOOLTIP = 200
 var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -112,6 +113,150 @@ function extractHref(attrs) {
   return trim(decodeEntities(match[2] !== undefined ? match[2] : match[3]))
 }
 
+function htmlTagName(inner) {
+  var match = String(inner || "").match(/^\/?\s*([A-Za-z][A-Za-z0-9]*)/)
+  return match ? match[1].toLowerCase() : ""
+}
+
+function htmlTagIsClose(inner) {
+  return /^\s*\//.test(String(inner || ""))
+}
+
+function isBreakTag(name) {
+  return name === "p" || name === "br" || name === "div" || name === "li"
+    || name === "h1" || name === "h2" || name === "h3" || name === "tr"
+    || name === "blockquote"
+}
+
+function sanitizeBodyText(value) {
+  return String(value || "")
+    .replace(/[<>&]/g, "")
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "")
+}
+
+function pushBodyToken(segments, used, max, token) {
+  if (segments.length >= MAX_BODY_TOKENS) return -1
+  if (token.kind === "break") {
+    if (segments.length === 0 || segments[segments.length - 1].kind === "break") return used
+    segments.push({ kind: "break", text: "" })
+    return used
+  }
+  var text = sanitizeBodyText(token.text)
+  if (!text) return used
+  if (used >= max) return -1
+  if (used + text.length > max) text = text.slice(0, max - used)
+  if (!text) return -1
+  var next = { kind: token.kind, text: text }
+  if (token.kind === "link") next.href = token.href
+  segments.push(next)
+  return used + text.length
+}
+
+function pushTextWithBareUrls(segments, used, max, chunk) {
+  var text = sanitizeBodyText(decodeEntities(chunk))
+  if (!text) return used
+  var re = /https:\/\/[A-Za-z0-9.-]+(?::\d+)?(?:\/[^\s]*)?/g
+  var last = 0
+  var match
+  while ((match = re.exec(text))) {
+    if (match.index > last) {
+      used = pushBodyToken(segments, used, max, { kind: "text", text: text.slice(last, match.index) })
+      if (used < 0) return used
+    }
+    if (isHttpsUrl(match[0])) {
+      used = pushBodyToken(segments, used, max, { kind: "link", text: match[0], href: match[0] })
+    } else {
+      used = pushBodyToken(segments, used, max, { kind: "text", text: match[0] })
+    }
+    if (used < 0) return used
+    last = match.index + match[0].length
+  }
+  if (last < text.length)
+    used = pushBodyToken(segments, used, max, { kind: "text", text: text.slice(last) })
+  return used
+}
+
+function bodyTokens(html, maxLen) {
+  var raw = String(html || "")
+  var max = Number(maxLen)
+  if (!isFinite(max) || max <= 0) max = MAX_BODY
+  var segments = []
+  var used = 0
+  var i = 0
+  while (i < raw.length && used >= 0 && segments.length < MAX_BODY_TOKENS) {
+    if (raw.charAt(i) !== "<") {
+      var lt = raw.indexOf("<", i)
+      if (lt < 0) lt = raw.length
+      used = pushTextWithBareUrls(segments, used, max, raw.slice(i, lt))
+      i = lt
+      continue
+    }
+    if (raw.slice(i, i + 4) === "<!--") {
+      var endComment = raw.indexOf("-->", i + 4)
+      i = endComment < 0 ? raw.length : endComment + 3
+      continue
+    }
+    var gt = raw.indexOf(">", i)
+    if (gt < 0) break
+    var inner = raw.slice(i + 1, gt)
+    var name = htmlTagName(inner)
+    if (name === "a" && !htmlTagIsClose(inner)) {
+      var href = extractHref(" " + inner)
+      var rest = raw.slice(gt + 1)
+      var closeMatch = rest.match(/<\s*\/\s*a\s*>/i)
+      var labelHtml = closeMatch ? rest.slice(0, closeMatch.index) : rest
+      var label = stripTags(labelHtml)
+      if (isHttpsUrl(href))
+        used = pushBodyToken(segments, used, max, { kind: "link", text: label || href, href: href })
+      else
+        used = pushBodyToken(segments, used, max, { kind: "text", text: label })
+      i = closeMatch ? gt + 1 + closeMatch.index + closeMatch[0].length : raw.length
+      continue
+    }
+    if (isBreakTag(name))
+      used = pushBodyToken(segments, used, max, { kind: "break", text: "" })
+    i = gt + 1
+  }
+  return segments
+}
+
+function bodyParagraphs(html, maxLen) {
+  var tokens = bodyTokens(html, maxLen)
+  var paragraphs = []
+  var current = []
+  var i
+  function flush() {
+    if (!current.length) return
+    paragraphs.push(current)
+    current = []
+  }
+  for (i = 0; i < tokens.length; i++) {
+    var token = tokens[i]
+    if (token.kind === "break") {
+      flush()
+      continue
+    }
+    if (token.kind === "link") {
+      current.push({ kind: "link", text: token.text, href: token.href })
+      continue
+    }
+    var parts = String(token.text || "").split(/(\s+)/)
+    var j
+    for (j = 0; j < parts.length; j++) {
+      if (!parts[j]) continue
+      current.push({ kind: "text", text: parts[j] })
+    }
+  }
+  flush()
+  return paragraphs
+}
+
+function cachedBody(item) {
+  if (!item || typeof item !== "object") return []
+  if (item.body && item.body.length) return item.body
+  return bodyParagraphs(item.content || "", MAX_BODY)
+}
+
 function isRss20(xml) {
   return /<rss\b[^>]*\bversion\s*=\s*["']2\.0["']/i.test(String(xml || ""))
     || /<rss\b[^>]*\bversion\s*=\s*2\.0\b/i.test(String(xml || ""))
@@ -201,7 +346,8 @@ function parseItem(block) {
     pubMs: pubMs,
     creator: plainLabel(creator, MAX_CREATOR),
     dek: plainLabel(description, MAX_DEK),
-    content: plainLabel(encoded || description, MAX_BODY)
+    content: plainLabel(encoded || description, MAX_BODY),
+    body: bodyParagraphs(encoded || description, MAX_BODY)
   }
 }
 
@@ -428,9 +574,15 @@ function parseFeedCache(raw) {
   try {
     var parsed = JSON.parse(String(raw))
     if (!parsed || typeof parsed !== "object") return { fetchedAt: "", items: [] }
+    var items = Array.isArray(parsed.items) ? parsed.items : []
+    var i
+    for (i = 0; i < items.length; i++) {
+      if (items[i] && !items[i].body)
+        items[i].body = cachedBody(items[i])
+    }
     return {
       fetchedAt: String(parsed.fetchedAt || ""),
-      items: Array.isArray(parsed.items) ? parsed.items : []
+      items: items
     }
   } catch (e) {
     return { fetchedAt: "", items: [] }
@@ -449,6 +601,8 @@ if (typeof module !== "undefined") {
     utf8ByteLength: utf8ByteLength,
     plainLabel: plainLabel,
     stripTags: stripTags,
+    bodyTokens: bodyTokens,
+    bodyParagraphs: bodyParagraphs,
     parseFeed: parseFeed,
     emptyReadState: emptyReadState,
     parseReadState: parseReadState,
